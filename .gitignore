@@ -1,0 +1,13 @@
+.idea
+.cproject
+.project
+.settings/
+
+*.pyc
+*.zip
+
+cache/
+
+*.cvs
+
+cvs/
