@@ -58,7 +58,6 @@ order by ic.DeliverDate
 ## 中心病理数据库(HY_Centpathology)
 - 汇总
 ```sql
-
 DECLARE @begin_time varchar(64)
 DECLARE @end_time varchar(64)
 DECLARE @hospital_name varchar(512)
@@ -76,13 +75,29 @@ SET @hospital_name='南方医科大学南海%'
 ;
 
 WITH
-frist_diagnosis as
+routine_IllnessCase AS
 (
-  select top 1 rq, blzd from  t_blcz_log WHERE t_blcz_log.ybid= ybid and t_blcz_log.czlx = '初筛签名' order by finterid desc
+  SELECT *,
+  (select top 1 rq from  t_blcz_log WHERE t_blcz_log.ybid= t_bljbxxb.ybid and t_blcz_log.czlx = '初筛签名' order by finterid desc) as frist_diagnosis_time,
+  (select top 1 blzd from  t_blcz_log WHERE t_blcz_log.ybid= t_bljbxxb.ybid and t_blcz_log.czlx = '初筛签名' order by finterid desc) as frist_diagnosis_text,
+  (select top 1 blzd from  t_blcz_log WHERE t_blcz_log.ybid= t_bljbxxb.ybid and t_blcz_log.czlx = '报告签名' order by finterid desc) as review_diagnosis_text,
+  (select top 1 hy_ysf from LISDB.dbo.f_k_ybxx AS f_k_ybxx WHERE f_k_ybxx.ybid = t_bljbxxb.ybid order by hy_ysf desc) as price_standard,
+  (select top 1 hy_ssf from LISDB.dbo.f_k_ybxx AS f_k_ybxx WHERE f_k_ybxx.ybid = t_bljbxxb.ybid order by hy_ssf desc) as price_real
+  FROM t_bljbxxb
+  where jstime >= @begin_time and jstime <= @end_time
+  and sjhospital like @hospital_name
 ),
-review_diagnosis as
+tct_IllnessCase AS
 (
-  select top 1 blzd from  t_blcz_log WHERE t_blcz_log.ybid= ybid and t_blcz_log.czlx = '报告签名' order by finterid desc
+  SELECT *,
+  (select top 1 rq from  t_blcz_log WHERE t_blcz_log.ybid= t_tctbgd.ybid and t_blcz_log.czlx = '初筛签名' order by finterid desc) as frist_diagnosis_time,
+  (select top 1 blzd from  t_blcz_log WHERE t_blcz_log.ybid= t_tctbgd.ybid and t_blcz_log.czlx = '初筛签名' order by finterid desc) as frist_diagnosis_text,
+  (select top 1 blzd from  t_blcz_log WHERE t_blcz_log.ybid= t_tctbgd.ybid and t_blcz_log.czlx = '报告签名' order by finterid desc) as review_diagnosis_text,
+  (select top 1 hy_ysf from LISDB.dbo.f_k_ybxx AS f_k_ybxx WHERE f_k_ybxx.ybid = t_tctbgd.ybid order by hy_ysf desc) as price_standard,
+  (select top 1 hy_ssf from LISDB.dbo.f_k_ybxx AS f_k_ybxx WHERE f_k_ybxx.ybid = t_tctbgd.ybid order by hy_ssf desc) as price_real
+  FROM t_tctbgd
+  where jstime >= @begin_time and jstime <= @end_time
+  and sjhospital like @hospital_name
 )
 
 (
@@ -109,24 +124,22 @@ src_table.sjdoctor '送检医生',
 src_table.lrr '录入人员',
 src_table.lrsj '录入时间',
 src_table.zddoctor '初筛医生',
-frist_diagnosis.rq as '初筛时间',
-replace(replace(frist_diagnosis.blzd, char(13), ''), char(10), '') as '病理诊断(初审)',
+src_table.frist_diagnosis_time as '初筛时间',
+replace(replace(src_table.frist_diagnosis_text, char(13), ''), char(10), '') as '病理诊断(初审)',
 '报告医生'=NULL,
 src_table.fcdoctor '复查医生',
-replace(replace(review_diagnosis.blzd, char(13), ''), char(10), '') as '复查诊断',
+replace(replace(src_table.review_diagnosis_text, char(13), ''), char(10), '') as '复查诊断',
 src_table.qfdoctor '签发医生',
 src_table.bgtime '报告时间',
 replace(replace(src_table.lczd, char(13), ''), char(10), '') as '临床诊断',
 replace(replace(src_table.rysj, char(13), ''), char(10), '') as '肉眼所见',
 replace(replace(src_table.blsj, char(13), ''), char(10), '') as '光镜所见',
 replace(replace(src_table.blzd, char(13), ''), char(10), '') as '病理诊断',
-'标准费用'=NULL,
+src_table.price_standard '标准费用',
 '是否冰冻'=NULL,
 src_table.hy_zdlx '诊断类型',
 src_table.ybzt '报告状态'
-FROM t_bljbxxb as src_table, frist_diagnosis, review_diagnosis
-where src_table.jstime >= @begin_time and src_table.jstime <= @end_time
-and src_table.sjhospital like @hospital_name
+FROM routine_IllnessCase AS src_table
 )
 UNION
 (
@@ -153,24 +166,22 @@ src_table.sjdoctor '送检医生',
 src_table.lrr '录入人员',
 src_table.lrsj '录入时间',
 src_table.zddoctor '初筛医生',
-frist_diagnosis.rq as '初筛时间',
-replace(replace(frist_diagnosis.blzd, char(13), ''), char(10), '') as '病理诊断(初审)',
+src_table.frist_diagnosis_time as '初筛时间',
+replace(replace(src_table.frist_diagnosis_text, char(13), ''), char(10), '') as '病理诊断(初审)',
 '报告医生'=NULL,
 src_table.fcdoctor '复查医生',
-replace(replace(review_diagnosis.blzd, char(13), ''), char(10), '') as '复查诊断',
+replace(replace(src_table.review_diagnosis_text, char(13), ''), char(10), '') as '复查诊断',
 src_table.qfdoctor '签发医生',
 src_table.bgtime '报告时间',
 replace(replace(src_table.lczd, char(13), ''), char(10), '') as '临床诊断',
 '肉眼所见'=NULL,
 '光镜所见'=NULL,
 replace(replace(cast(src_table.xbblxzd as varchar(max)), char(13), ''), char(10), '') as '病理诊断',
-'标准费用'=NULL,
+src_table.price_standard '标准费用',
 '是否冰冻'=NULL,
 src_table.hy_zdlx '诊断类型',
 src_table.ybzt '报告状态'
-FROM t_tctbgd as src_table, frist_diagnosis, review_diagnosis
-where src_table.jstime >= @begin_time and src_table.jstime <= @end_time
-and src_table.sjhospital like @hospital_name
+FROM tct_IllnessCase AS src_table
 )
 order by src_table.jstime
 
